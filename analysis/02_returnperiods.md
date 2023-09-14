@@ -9,7 +9,7 @@ To note:
 - The aim is to get the return period for various categories of storms.
 - This notebook uses shapefile data from IBTrACS. To replicate it, please download the data from https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r00/access/shapefile/
 - The focus is on the Northern Indian Ocean Basin.
-- A 250km buffer is used to isolate cyclones close to the coastline. 
+- A buffer is used to isolate cyclones close to the coastline. 
 
 
 ```python
@@ -18,23 +18,11 @@ To note:
 %autoreload 2
 ```
 
-
-
-<script type="application/javascript" id="jupyter_black">
-(function() {
-    if (window.IPython === undefined) {
-        return
-    }
-    var msg = "WARNING: it looks like you might have loaded " +
-        "jupyter_black in a non-lab notebook with " +
-        "`is_lab=True`. Please double check, and if " +
-        "loading with `%load_ext` please review the README!"
-    console.log(msg)
-    alert(msg)
-})()
-</script>
-
-
+    The jupyter_black extension is already loaded. To reload it, use:
+      %reload_ext jupyter_black
+    The autoreload extension is already loaded. To reload it, use:
+      %reload_ext autoreload
+    
 
 
 ```python
@@ -48,6 +36,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import ochanticipy as oap
+from climada.hazard import Centroids, TCTracks, TropCyclone
+from shapely.geometry import LineString
 ```
 
 
@@ -59,12 +49,7 @@ ibtracs_pointdf = gpd.read_file(
         "public/raw/bgd/ibtracs/IBTrACS.NI.list.v04r00.points.zip",
     )
 )
-ibtracs_linesdf = gpd.read_file(
-    Path(
-        os.getenv("AA_DATA_DIR"),
-        "public/raw/bgd/ibtracs/IBTrACS.NI.list.v04r00.lines.zip",
-    )
-)
+# ibtracs_linesdf = gpd.read_file(Path(os.getenv("AA_DATA_DIR"),"public/raw/bgd/ibtracs/IBTrACS.NI.list.v04r00.lines.zip",))
 ```
 
 
@@ -101,11 +86,9 @@ bgd_admin0_buff["geometry"] = bgd_admin0_buff.buffer(500 / 111)
 bgd_admin0_buff.plot()
 ```
 
-    C:\Users\pauni\AppData\Local\Temp\ipykernel_22720\4240515824.py:2: UserWarning:
+    C:\Users\pauni\AppData\Local\Temp\ipykernel_33920\4240515824.py:2: UserWarning: Geometry is in a geographic CRS. Results from 'buffer' are likely incorrect. Use 'GeoSeries.to_crs()' to re-project geometries to a projected CRS before this operation.
     
-    Geometry is in a geographic CRS. Results from 'buffer' are likely incorrect. Use 'GeoSeries.to_crs()' to re-project geometries to a projected CRS before this operation.
-    
-    
+      bgd_admin0_buff["geometry"] = bgd_admin0_buff.buffer(500 / 111)
     
 
 
@@ -128,6 +111,31 @@ barisal_ab = bgd_admin1[bgd_admin1["ADM1_EN"] == "Barisal"]
 
 
 ```python
+barisal_ab_buff = barisal_ab.copy()
+barisal_ab_buff["geometry"] = barisal_ab_buff.buffer(500 / 111)
+barisal_ab_buff.plot()
+```
+
+    C:\Users\pauni\AppData\Local\Temp\ipykernel_33920\2592906942.py:2: UserWarning: Geometry is in a geographic CRS. Results from 'buffer' are likely incorrect. Use 'GeoSeries.to_crs()' to re-project geometries to a projected CRS before this operation.
+    
+      barisal_ab_buff["geometry"] = barisal_ab_buff.buffer(500 / 111)
+    
+
+
+
+
+    <Axes: >
+
+
+
+
+    
+![png](02_returnperiods_files/02_returnperiods_9_2.png)
+    
+
+
+
+```python
 ibtracs_pointdf.crs == barisal_ab.crs
 ```
 
@@ -143,15 +151,12 @@ ibtracs_pointdf.crs == barisal_ab.crs
 ibtracs_pointdf["SEASON NAME"] = (
     ibtracs_pointdf["NAME"] + " " + ibtracs_pointdf["SEASON"].astype(str)
 )
-ibtracs_linesdf["SEASON NAME"] = (
-    ibtracs_linesdf["NAME"] + " " + ibtracs_linesdf["SEASON"].astype(str)
-)
 ```
 
 
 ```python
 bgd_cyclones = ibtracs_pointdf.loc[
-    ibtracs_pointdf.within(bgd_admin0_buff.geometry[0]), :
+    ibtracs_pointdf.within(barisal_ab_buff.geometry[0]), :
 ]
 ```
 
@@ -163,18 +168,18 @@ bgd_cyclones.to_crs(epsg=3106).geometry
 
 
 
-    156      POINT (-12106.018 2240900.067)
-    157       POINT (32022.021 2282942.295)
     158       POINT (72808.522 2325137.531)
     159      POINT (110331.691 2369689.133)
     160      POINT (145639.719 2416559.149)
+    161      POINT (175711.636 2469127.347)
+    162      POINT (199526.268 2526283.986)
                           ...              
     60577    POINT (677097.594 2311723.928)
     60578    POINT (611169.589 2369823.589)
     60579    POINT (541600.881 2421518.841)
     60580    POINT (496158.203 2445816.461)
     60581    POINT (469360.816 2454701.474)
-    Name: geometry, Length: 16208, dtype: geometry
+    Name: geometry, Length: 12670, dtype: geometry
 
 
 
@@ -184,7 +189,7 @@ bgd_cyclones.to_crs(epsg=3106).geometry
 bgd_cyclones["Distance (km)"] = (
     bgd_cyclones.to_crs(epsg=3106).apply(
         lambda point: point.geometry.distance(
-            bgd_admin0.to_crs(epsg=3106).geometry[0].boundary
+            barisal_ab.to_crs(epsg=3106).geometry[0].boundary
         ),
         axis=1,
     )
@@ -192,20 +197,18 @@ bgd_cyclones["Distance (km)"] = (
 )
 ```
 
-    c:\Users\pauni\Desktop\Work\OCHA\GitHub\pa-aa-bgd-storms\.venv\lib\site-packages\geopandas\geodataframe.py:1538: SettingWithCopyWarning:
-    
-    
+    c:\Users\pauni\Desktop\Work\OCHA\GitHub\pa-aa-bgd-storms\.venv\lib\site-packages\geopandas\geodataframe.py:1538: SettingWithCopyWarning: 
     A value is trying to be set on a copy of a slice from a DataFrame.
     Try using .loc[row_indexer,col_indexer] = value instead
     
     See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
-    
+      super().__setitem__(key, value)
     
 
 
 ```python
 # starting point
-start_yr = 1990  # 1990
+start_yr = 1973  # 1990
 yr_len = (2023 - bgd_cyclones["year"].iloc[0]) + 1
 if start_yr > 0:
     yr_len = (2023 - start_yr) + 1
@@ -231,14 +234,14 @@ barisal_cyclonesdf["NEW_GRADE"].value_counts()
 
 
     NEW_GRADE
-    D         623
-    DD        364
-    CS        148
-    VSCS       59
-    SCS        55
-    SCS(H)     12
-    ESCS        9
+    D         479
+    DD        280
+    CS        116
+    VSCS       51
+    SCS        45
+    SCS(H)     10
     SUCS        7
+    ESCS        5
     Name: count, dtype: int64
 
 
@@ -246,7 +249,7 @@ barisal_cyclonesdf["NEW_GRADE"].value_counts()
 
 ```python
 stat_df = (
-    bgd_cyclones[["SEASON NAME", "NEW_GRADE"]]
+    barisal_cyclonesdf[["SEASON NAME", "NEW_GRADE"]]
     .drop_duplicates()
     .groupby(["NEW_GRADE"])
     .count()
@@ -289,58 +292,58 @@ stat_df
     <tr>
       <th>0</th>
       <td>CS</td>
-      <td>25</td>
-      <td>1.360000</td>
-      <td>1.0</td>
+      <td>22</td>
+      <td>2.318182</td>
+      <td>2.0</td>
     </tr>
     <tr>
       <th>1</th>
       <td>D</td>
-      <td>43</td>
-      <td>0.790698</td>
+      <td>38</td>
+      <td>1.342105</td>
       <td>1.0</td>
     </tr>
     <tr>
       <th>2</th>
       <td>DD</td>
-      <td>39</td>
-      <td>0.871795</td>
-      <td>1.0</td>
+      <td>34</td>
+      <td>1.500000</td>
+      <td>2.0</td>
     </tr>
     <tr>
       <th>3</th>
       <td>ESCS</td>
-      <td>2</td>
-      <td>17.000000</td>
-      <td>17.0</td>
+      <td>1</td>
+      <td>51.000000</td>
+      <td>51.0</td>
     </tr>
     <tr>
       <th>4</th>
       <td>SCS</td>
-      <td>13</td>
-      <td>2.615385</td>
-      <td>3.0</td>
+      <td>12</td>
+      <td>4.250000</td>
+      <td>4.0</td>
     </tr>
     <tr>
       <th>5</th>
       <td>SCS(H)</td>
       <td>1</td>
-      <td>34.000000</td>
-      <td>34.0</td>
+      <td>51.000000</td>
+      <td>51.0</td>
     </tr>
     <tr>
       <th>6</th>
       <td>SUCS</td>
       <td>1</td>
-      <td>34.000000</td>
-      <td>34.0</td>
+      <td>51.000000</td>
+      <td>51.0</td>
     </tr>
     <tr>
       <th>7</th>
       <td>VSCS</td>
-      <td>10</td>
-      <td>3.400000</td>
-      <td>3.0</td>
+      <td>9</td>
+      <td>5.666667</td>
+      <td>6.0</td>
     </tr>
   </tbody>
 </table>
@@ -351,7 +354,7 @@ stat_df
 
 ```python
 distances = [1, 100, 200, 350, 500]
-categories = bgd_cyclones["NEW_GRADE"].unique()
+categories = barisal_cyclonesdf["NEW_GRADE"].unique()
 categories = categories[~pd.isnull(categories)]
 
 triggers = pd.DataFrame()
@@ -367,9 +370,15 @@ for distance in distances:
         dff = pd.DataFrame()
         for threshold in thresholds:
             # cycle through composite thresholds
-            df_add = bgd_cyclones[
-                (bgd_cyclones["Distance (km)"] <= threshold.get("distance"))
-                & (bgd_cyclones["NEW_GRADE"] == threshold.get("category"))
+            df_add = barisal_cyclonesdf[
+                (
+                    barisal_cyclonesdf["Distance (km)"]
+                    <= threshold.get("distance")
+                )
+                & (
+                    barisal_cyclonesdf["NEW_GRADE"]
+                    == threshold.get("category")
+                )
             ]
             dff = pd.concat([dff, df_add])
         dff = dff.sort_values("ISO_TIME", ascending=False)
@@ -386,7 +395,7 @@ for distance in distances:
         triggers = pd.concat([triggers, df_add], ignore_index=True)
 
 triggers["return"] = (
-    len(pd.to_datetime(bgd_cyclones["ISO_TIME"]).dt.year.unique())
+    len(pd.to_datetime(barisal_cyclonesdf["ISO_TIME"]).dt.year.unique())
     / triggers["count"]
 )
 
@@ -466,9 +475,9 @@ fig.show(renderer="notebook")
 
 
 
-<div>                            <div id="3508c853-f019-4522-aa18-fc86c0502415" class="plotly-graph-div" style="height:525px; width:100%;"></div>            <script type="text/javascript">                require(["plotly"], function(Plotly) {                    window.PLOTLYENV=window.PLOTLYENV || {};                                    if (document.getElementById("3508c853-f019-4522-aa18-fc86c0502415")) {                    Plotly.newPlot(                        "3508c853-f019-4522-aa18-fc86c0502415",                        [{"coloraxis":"coloraxis","name":"","texttemplate":"%{z}","x":["1","100","200","350","500"],"y":["VSCS","SUCS","SCS(H)","SCS","ESCS","DD","D","CS"],"z":[[null,48.33,29.0,16.11,14.5],[null,null,null,145.0,145.0],[null,145.0,145.0,145.0,145.0],[72.5,20.71,16.11,12.08,11.15],[null,null,145.0,145.0,72.5],[24.17,6.59,5.37,4.53,3.72],[72.5,5.58,4.53,3.62,3.37],[48.33,10.36,10.36,6.9,5.8]],"type":"heatmap","xaxis":"x","yaxis":"y","hovertemplate":"Cyclones triggered:\u003cbr\u003e%{customdata}","customdata":[["","AMPHAN 2020\u003cbr\u003eSIDR 2007\u003cbr\u003eNOT_NAMED 2004","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eGIRI 2010\u003cbr\u003eSIDR 2007\u003cbr\u003eNOT_NAMED 2004","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eGIRI 2010\u003cbr\u003eSIDR 2007\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eGIRI 2010\u003cbr\u003eSIDR 2007\u003cbr\u003eMALA 2006\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998"],["","","","NOT_NAMED 1999","NOT_NAMED 1999"],["","NOT_NAMED 1997","NOT_NAMED 1997","NOT_NAMED 1997","NOT_NAMED 1997"],["BULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 1997","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eAILA 2009\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eGIRI 2010\u003cbr\u003eAILA 2009\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eGIRI 2010\u003cbr\u003eAILA 2009\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eGIRI 2010\u003cbr\u003eAILA 2009\u003cbr\u003eMALA 2006\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997"],["","","AMPHAN 2020","AMPHAN 2020","AMPHAN 2020\u003cbr\u003eFANI 2019"],["BULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1996","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","NOT_NAMED 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eMAARUTHA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","JAWAD 2021\u003cbr\u003eGULAB:SHAHEEN-GU 2021\u003cbr\u003eNOT_NAMED 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eTITLI 2018\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eMAARUTHA 2017\u003cbr\u003eKYANT 2016\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003ePHAILIN 2013\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eGIRI 2010\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996"],["NOT_NAMED 2018\u003cbr\u003eKOMEN 2015","NOT_NAMED 2020\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","JAWAD 2021\u003cbr\u003eNOT_NAMED 2020\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eTITLI 2018\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","JAWAD 2021\u003cbr\u003eGULAB:SHAHEEN-GU 2021\u003cbr\u003eNOT_NAMED 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eNOT_NAMED 2020\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eTITLI 2018\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eMAARUTHA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eGIRI 2010\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2001\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","JAWAD 2021\u003cbr\u003eGULAB:SHAHEEN-GU 2021\u003cbr\u003eNOT_NAMED 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eNOT_NAMED 2020\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eTITLI 2018\u003cbr\u003eDAYE 2018\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eMAARUTHA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003ePHAILIN 2013\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eGIRI 2010\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2001\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996"],["KOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eRASHMI 2008","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eAKASH 2007\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1997","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eAKASH 2007\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1997","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eMAARUTHA 2017\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eGIRI 2010\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eAKASH 2007\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","GULAB:SHAHEEN-GU 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eMAARUTHA 2017\u003cbr\u003eKYANT 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eGIRI 2010\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eAKASH 2007\u003cbr\u003eMALA 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997"]]}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmapgl":[{"type":"heatmapgl","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"xaxis":{"anchor":"y","domain":[0.0,1.0],"scaleanchor":"y","constrain":"domain","title":{"text":"Distance (km)"},"side":"top"},"yaxis":{"anchor":"x","domain":[0.0,1.0],"autorange":"reversed","constrain":"domain","title":{"text":"Category"}},"coloraxis":{"colorscale":[[0.0,"rgb(255,245,240)"],[0.125,"rgb(254,224,210)"],[0.25,"rgb(252,187,161)"],[0.375,"rgb(252,146,114)"],[0.5,"rgb(251,106,74)"],[0.625,"rgb(239,59,44)"],[0.75,"rgb(203,24,29)"],[0.875,"rgb(165,15,21)"],[1.0,"rgb(103,0,13)"]],"cmin":1,"cmax":5,"colorbar":{"title":{"text":"Return\u003cbr\u003eperiod\u003cbr\u003e(years)"}}},"margin":{"t":60}},                        {"responsive": true}                    ).then(function(){
+<div>                            <div id="25110447-f148-4de4-b2ea-c90e0f27a7a8" class="plotly-graph-div" style="height:525px; width:100%;"></div>            <script type="text/javascript">                require(["plotly"], function(Plotly) {                    window.PLOTLYENV=window.PLOTLYENV || {};                                    if (document.getElementById("25110447-f148-4de4-b2ea-c90e0f27a7a8")) {                    Plotly.newPlot(                        "25110447-f148-4de4-b2ea-c90e0f27a7a8",                        [{"coloraxis":"coloraxis","name":"","texttemplate":"%{z}","x":["1","100","200","350","500"],"y":["VSCS","SUCS","SCS(H)","SCS","ESCS","DD","D","CS"],"z":[[null,49.0,24.5,7.0,5.44],[null,null,null,null,49.0],[null,49.0,49.0,49.0,49.0],[49.0,16.33,7.0,4.9,4.08],[null,null,null,49.0,49.0],[16.33,4.08,2.88,1.75,1.44],[49.0,3.27,2.13,1.63,1.29],[49.0,8.17,3.5,3.27,2.23]],"type":"heatmap","xaxis":"x","yaxis":"y","hovertemplate":"Cyclones triggered:\u003cbr\u003e%{customdata}","customdata":[["","SIDR 2007","AMPHAN 2020\u003cbr\u003eSIDR 2007","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eGIRI 2010\u003cbr\u003eSIDR 2007\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 1998","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eGIRI 2010\u003cbr\u003eSIDR 2007\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998"],["","","","","NOT_NAMED 1999"],["","NOT_NAMED 1997","NOT_NAMED 1997","NOT_NAMED 1997","NOT_NAMED 1997"],["NOT_NAMED 1997","BULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eAILA 2009\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eAILA 2009\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","YAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eGIRI 2010\u003cbr\u003eAILA 2009\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997"],["","","","AMPHAN 2020","AMPHAN 2020"],["BULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eNOT_NAMED 1998","BULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1996","BULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","NOT_NAMED 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","GULAB:SHAHEEN-GU 2021\u003cbr\u003eNOT_NAMED 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eGIRI 2010\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996"],["KOMEN 2015","NOT_NAMED 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eBIJLI 2009\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","NOT_NAMED 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","JAWAD 2021\u003cbr\u003eNOT_NAMED 2021\u003cbr\u003eNOT_NAMED 2020\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eTITLI 2018\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996","JAWAD 2021\u003cbr\u003eGULAB:SHAHEEN-GU 2021\u003cbr\u003eNOT_NAMED 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eNOT_NAMED 2020\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eNOT_NAMED 2019\u003cbr\u003eFANI 2019\u003cbr\u003eTITLI 2018\u003cbr\u003eNOT_NAMED 2018\u003cbr\u003eNOT_NAMED 2017\u003cbr\u003eMORA 2017\u003cbr\u003eNOT_NAMED 2016\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eNOT_NAMED 2014\u003cbr\u003eNOT_NAMED 2013\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eNOT_NAMED 2012\u003cbr\u003eNOT_NAMED 2011\u003cbr\u003eGIRI 2010\u003cbr\u003eNOT_NAMED 2010\u003cbr\u003eNOT_NAMED 2009\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eNOT_NAMED 2008\u003cbr\u003eNOT_NAMED 2006\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2001\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997\u003cbr\u003eNOT_NAMED 1996"],["RASHMI 2008","BULBUL:MATMO 2019\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eRASHMI 2008\u003cbr\u003eNOT_NAMED 1997","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eAKASH 2007\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1997","AMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eAKASH 2007\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997","GULAB:SHAHEEN-GU 2021\u003cbr\u003eYAAS 2021\u003cbr\u003eAMPHAN 2020\u003cbr\u003eBULBUL:MATMO 2019\u003cbr\u003eFANI 2019\u003cbr\u003eMORA 2017\u003cbr\u003eROANU 2016\u003cbr\u003eKOMEN 2015\u003cbr\u003eMAHASEN:VIYARU 2013\u003cbr\u003eGIRI 2010\u003cbr\u003eAILA 2009\u003cbr\u003eBIJLI 2009\u003cbr\u003eRASHMI 2008\u003cbr\u003eAKASH 2007\u003cbr\u003eNOT_NAMED 2005\u003cbr\u003eNOT_NAMED 2004\u003cbr\u003eNOT_NAMED 2003\u003cbr\u003eNOT_NAMED 2002\u003cbr\u003eNOT_NAMED 2000\u003cbr\u003eNOT_NAMED 1999\u003cbr\u003eNOT_NAMED 1998\u003cbr\u003eNOT_NAMED 1997"]]}],                        {"template":{"data":{"histogram2dcontour":[{"type":"histogram2dcontour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"choropleth":[{"type":"choropleth","colorbar":{"outlinewidth":0,"ticks":""}}],"histogram2d":[{"type":"histogram2d","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmap":[{"type":"heatmap","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"heatmapgl":[{"type":"heatmapgl","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"contourcarpet":[{"type":"contourcarpet","colorbar":{"outlinewidth":0,"ticks":""}}],"contour":[{"type":"contour","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"surface":[{"type":"surface","colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]}],"mesh3d":[{"type":"mesh3d","colorbar":{"outlinewidth":0,"ticks":""}}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"parcoords":[{"type":"parcoords","line":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolargl":[{"type":"scatterpolargl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"scattergeo":[{"type":"scattergeo","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterpolar":[{"type":"scatterpolar","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"scattergl":[{"type":"scattergl","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatter3d":[{"type":"scatter3d","line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattermapbox":[{"type":"scattermapbox","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scatterternary":[{"type":"scatterternary","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"scattercarpet":[{"type":"scattercarpet","marker":{"colorbar":{"outlinewidth":0,"ticks":""}}}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"white","linecolor":"white","minorgridcolor":"white","startlinecolor":"#2a3f5f"},"type":"carpet"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}],"barpolar":[{"marker":{"line":{"color":"#E5ECF6","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"pie":[{"automargin":true,"type":"pie"}]},"layout":{"autotypenumbers":"strict","colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"hovermode":"closest","hoverlabel":{"align":"left"},"paper_bgcolor":"white","plot_bgcolor":"#E5ECF6","polar":{"bgcolor":"#E5ECF6","angularaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"radialaxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"ternary":{"bgcolor":"#E5ECF6","aaxis":{"gridcolor":"white","linecolor":"white","ticks":""},"baxis":{"gridcolor":"white","linecolor":"white","ticks":""},"caxis":{"gridcolor":"white","linecolor":"white","ticks":""}},"coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]]},"xaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"yaxis":{"gridcolor":"white","linecolor":"white","ticks":"","title":{"standoff":15},"zerolinecolor":"white","automargin":true,"zerolinewidth":2},"scene":{"xaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"yaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2},"zaxis":{"backgroundcolor":"#E5ECF6","gridcolor":"white","linecolor":"white","showbackground":true,"ticks":"","zerolinecolor":"white","gridwidth":2}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"geo":{"bgcolor":"white","landcolor":"#E5ECF6","subunitcolor":"white","showland":true,"showlakes":true,"lakecolor":"white"},"title":{"x":0.05},"mapbox":{"style":"light"}}},"xaxis":{"anchor":"y","domain":[0.0,1.0],"scaleanchor":"y","constrain":"domain","title":{"text":"Distance (km)"},"side":"top"},"yaxis":{"anchor":"x","domain":[0.0,1.0],"autorange":"reversed","constrain":"domain","title":{"text":"Category"}},"coloraxis":{"colorscale":[[0.0,"rgb(255,245,240)"],[0.125,"rgb(254,224,210)"],[0.25,"rgb(252,187,161)"],[0.375,"rgb(252,146,114)"],[0.5,"rgb(251,106,74)"],[0.625,"rgb(239,59,44)"],[0.75,"rgb(203,24,29)"],[0.875,"rgb(165,15,21)"],[1.0,"rgb(103,0,13)"]],"cmin":1,"cmax":5,"colorbar":{"title":{"text":"Return\u003cbr\u003eperiod\u003cbr\u003e(years)"}}},"margin":{"t":60}},                        {"responsive": true}                    ).then(function(){
 
-var gd = document.getElementById('3508c853-f019-4522-aa18-fc86c0502415');
+var gd = document.getElementById('25110447-f148-4de4-b2ea-c90e0f27a7a8');
 var x = new MutationObserver(function (mutations, observer) {{
         var display = window.getComputedStyle(gd).display;
         if (!display || display === 'none') {{
@@ -491,4 +500,83 @@ if (outputEl) {{
 }}
 
                         })                };                });            </script>        </div>
+
+
+
+```python
+# Download all tracks
+sel_ibtracs = TCTracks.from_ibtracs_netcdf(basin="NI", provider="newdelhi")
+sel_ibtracs.size
+```
+
+    c:\Users\pauni\Desktop\Work\OCHA\GitHub\pa-aa-bgd-storms\.venv\lib\site-packages\xarray\backends\plugins.py:80: RuntimeWarning:
+    
+    Engine 'cfgrib' loading failed:
+    Cannot find the ecCodes library
+    
+    c:\Users\pauni\Desktop\Work\OCHA\GitHub\pa-aa-bgd-storms\.venv\lib\site-packages\xarray\coding\times.py:254: RuntimeWarning:
+    
+    invalid value encountered in cast
+    
+    c:\Users\pauni\Desktop\Work\OCHA\GitHub\pa-aa-bgd-storms\.venv\lib\site-packages\xarray\coding\times.py:254: RuntimeWarning:
+    
+    invalid value encountered in cast
+    
+    
+
+    2023-09-14 14:52:38,229 - climada.hazard.tc_tracks - WARNING - 1504 storm events are discarded because no valid wind/pressure values have been found: 1842298N11080, 1845336N10074, 1854303N14072, 1877135N10083, 1877192N21090, ...
+    2023-09-14 14:52:38,237 - climada.hazard.tc_tracks - WARNING - 1 storm events are discarded because only one valid timestep has been found: 1995269N21088.
+    
+
+
+
+
+    275
+
+
+
+
+```python
+country_config = oap.create_country_config(iso3="bgd")
+codab = oap.CodAB(country_config)
+bgd_admin0 = codab.load(admin_level=0)
+bgd_admin1 = codab.load(admin_level=1)
+barisal_ab = bgd_admin1[bgd_admin1["ADM1_EN"] == "Barisal"]
+```
+
+
+```python
+tc_tracks = TCTracks()
+for track in sel_ibtracs.data:
+    line = LineString((y, x) for x, y in zip(track.lat, track.lon))
+    bgd = barisal_ab.geometry[0].intersects(line)
+    if bgd:
+        tc_track = sel_ibtracs.get_track(track.sid)
+        tc_tracks.append(tc_track)
+len(tc_tracks.data)
+```
+
+
+
+
+    9
+
+
+
+
+```python
+tc_tracks.plot()
+```
+
+
+
+
+    <GeoAxes: >
+
+
+
+
+    
+![png](02_returnperiods_files/02_returnperiods_24_1.png)
+    
 

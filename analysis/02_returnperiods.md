@@ -10,6 +10,7 @@ To note:
 - This notebook uses shapefile data from IBTrACS. To replicate it, please download the data from https://www.ncei.noaa.gov/data/international-best-track-archive-for-climate-stewardship-ibtracs/v04r00/access/shapefile/
 - The focus is on the Northern Indian Ocean Basin.
 - A buffer is used to isolate cyclones close to the coastline. 
+- More info on track data here: https://www.ncei.noaa.gov/sites/default/files/2021-07/IBTrACS_v04_column_documentation.pdf 
 
 
 ```python
@@ -120,7 +121,7 @@ bgd_cyclones["Distance (km)"] = (
 
 ```python
 # starting point
-start_yr = 1973  # 1990
+start_yr = 0  # 1990
 yr_len = (2023 - bgd_cyclones["year"].iloc[0]) + 1
 if start_yr > 0:
     yr_len = (2023 - start_yr) + 1
@@ -130,6 +131,11 @@ if start_yr > 0:
 
 ```python
 barisal_cyclonesdf = bgd_cyclones[bgd_cyclones["year"] >= start_yr]
+```
+
+
+```python
+barisal_cyclonesdf.head(2)
 ```
 
 
@@ -159,9 +165,27 @@ stat_df
 
 
 ```python
+# convert word grades into numeric
+grade2num = {
+    "D": -1,
+    "DD": 0,
+    "CS": 1,
+    "SCS": 2,
+    "VSCS": 3,
+    "ESCS": 4,
+    "SCS(H)": 5,
+    "SUCS": 5,
+}
+barisal_cyclonesdf["GRADE_NUM"] = barisal_cyclonesdf["NEW_GRADE"].replace(
+    grade2num
+)
+barisal_cyclonesdf = barisal_cyclonesdf.dropna(subset="GRADE_NUM")
+```
+
+
+```python
 distances = [1, 100, 200, 350, 500]
-categories = barisal_cyclonesdf["NEW_GRADE"].unique()
-categories = categories[~pd.isnull(categories)]
+categories = [2, 3, 4, 5]
 
 triggers = pd.DataFrame()
 
@@ -182,8 +206,8 @@ for distance in distances:
                     <= threshold.get("distance")
                 )
                 & (
-                    barisal_cyclonesdf["NEW_GRADE"]
-                    == threshold.get("category")
+                    barisal_cyclonesdf["GRADE_NUM"]
+                    >= threshold.get("category")
                 )
             ]
             dff = pd.concat([dff, df_add])
